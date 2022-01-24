@@ -35,48 +35,7 @@ class Test(TestCase):
         self.assertEqual(cm.exception.args, ('no valid collectors specified',))
         self.assertEqual(out.getvalue(), '')
         self.assertEqual(err.getvalue(), '')
-
-    @mock.patch('elasticsearch.helpers.streaming_bulk')
-    @mock.patch('olympus.base.OlympusCollector.create_index')
-    def test_push_to_es_all_good(self, ci_m, bulk_m):
-        out = StringIO()
-        err = StringIO()
-        bulk_m.return_value = [(True, 'a'), (True, 'b'), (True, 'c')]
-        call_command('push_to_es', 'tests.ATestCollector', no_progress=True, stdout=out, stderr=err)
-        ci_m.assert_called_once_with()
-        bulk_m.assert_called_once()
-        self.assertEqual(out.getvalue(), 'Matched 1 collectors\ntests.ATestCollector pushed 3 records\n')
-        self.assertEqual(err.getvalue(), '')
-
-    @mock.patch('elasticsearch.helpers.streaming_bulk')
-    @mock.patch('olympus.base.OlympusCollector.create_index')
-    def test_push_to_es_so_so(self, ci_m, bulk_m):
-        out = StringIO()
-        err = StringIO()
-        bulk_m.return_value = [(True, 'a'), (True, 'b'), (False, 'c')]
-        with self.assertRaises(CommandError) as cm:
-            call_command('push_to_es', 'tests.ATestCollector', no_progress=True, stdout=out)
-        ci_m.assert_called_once_with()
-        bulk_m.assert_called_once()
-        self.assertEqual(out.getvalue(), 'Matched 1 collectors\ntests.ATestCollector pushed 2 records\n')
-        self.assertEqual(err.getvalue(), '')
-        self.assertEqual(cm.exception.args, ('These collectors failed', ['tests.ATestCollector']))
-
-    @mock.patch('elasticsearch.helpers.streaming_bulk')
-    @mock.patch('olympus.base.OlympusCollector.create_index')
-    def test_push_to_es_all_all_good(self, ci_m, bulk_m):
-        out = StringIO()
-        err = StringIO()
-        bulk_m.side_effect = [[(True, 'a'), (True, 'b'), (True, 'c')], [(True, 'a')]]
-        call_command('push_to_es', 'tests', no_progress=True, stdout=out, stderr=err)
-        self.assertEqual(
-            out.getvalue(),
-            'Matched 2 collectors\n'
-            'tests.ATestCollector pushed 3 records\n'
-            'tests.AnotherTestCollector pushed 1 records\n',
-        )
-        self.assertEqual(err.getvalue(), '')
-
+    
     def test_base_collector(self):
         timestamp = datetime(2019, 1, 15, 9, 0, 0)
         es = mock.MagicMock()
@@ -111,3 +70,70 @@ class Test(TestCase):
 {"k":2}
 '''
         )
+
+
+class TestMocked(TestCase):
+    def setUp(self):
+        p = mock.patch('olympus.base.OlympusCollector.create_index')
+        self.ci_m = p.start()
+        self.addCleanup(p.stop)
+
+        p = mock.patch('elasticsearch.helpers.streaming_bulk')
+        self.bulk_m = p.start()
+        self.addCleanup(p.stop)
+        def _f(*a, **b):
+            for i in a[1]:
+                yield (True, i)
+        self.bulk_m.side_effect = _f
+
+    def test_push_to_es_all_good(self):
+        out = StringIO()
+        err = StringIO()
+        call_command('push_to_es', 'tests.ATestCollector', no_progress=True, stdout=out, stderr=err)
+        self.ci_m.assert_called_once_with()
+        self.bulk_m.assert_called_once()
+        self.assertEqual(out.getvalue(), 'Matched 1 collectors\ntests.ATestCollector pushed 2 records\n')
+        self.assertEqual(err.getvalue(), '')
+
+    def test_push_to_es_so_so(self):
+        out = StringIO()
+        err = StringIO()
+        def _f(*a, **b):
+            # fail half
+            for i, v in enumerate(a[1]):
+                yield (i % 2, v)
+        self.bulk_m.side_effect = _f
+
+        with self.assertRaises(CommandError) as cm:
+            call_command('push_to_es', 'tests.ATestCollector', no_progress=True, stdout=out)
+        self.ci_m.assert_called_once_with()
+        self.bulk_m.assert_called_once()
+        self.assertEqual(out.getvalue(), 'Matched 1 collectors\ntests.ATestCollector pushed 1 records\n')
+        self.assertEqual(err.getvalue(), '')
+        self.assertEqual(cm.exception.args, ('These collectors failed', ['tests.ATestCollector']))
+
+    def test_push_to_es_all_all_good(self):
+        out = StringIO()
+        err = StringIO()
+        call_command('push_to_es', 'tests', no_progress=True, stdout=out, stderr=err)
+        self.assertEqual(
+            out.getvalue(),
+            'Matched 2 collectors\n'
+            'tests.ATestCollector pushed 2 records\n'
+            'tests.AnotherTestCollector pushed 1 records\n',
+        )
+        self.assertEqual(err.getvalue(), '')
+
+    def test_push_to_es_test_flag(self):
+        out = StringIO()
+        err = StringIO()
+        call_command('push_to_es', 'tests', no_progress=True, test=True, stdout=out, stderr=err)
+        self.assertEqual(
+            out.getvalue(),
+            'Matched 2 collectors\n'
+            'tests.ATestCollector pushed 2 records\n'
+            'tests.AnotherTestCollector pushed 1 records\n',
+        )
+        self.assertEqual(err.getvalue(), '')
+        self.bulk_m.assert_not_called()
+        self.ci_m.assert_not_called()

@@ -65,8 +65,26 @@ class OlympusCollector:
             self.es.indices.delete_alias(index='_all', name=alias, ignore=404)
             self.es.indices.put_alias(index=self.get_index_name(), name=alias)
 
+    def fake_push(self,
+        stats_cb: Optional[Callable[[bool, dict[str, Any]], None]] = None,
+    ) -> tuple[int, list[dict[str, Any]]]:
+        """
+        this method collects data but does not actually push it to ES, log.debug it instead
+
+        :param stats_cb: function called with (ok, item) as returned by streaming_bulk on every iteration
+        :return: tuple of number of (success, fail) records
+        """
+        success = 0
+        for item in self.__collect():
+            success += 1
+            if stats_cb is not None:
+                stats_cb(True, item)
+            self.logger.debug('would push: %s', item)
+        return success, []
+
     def push(
-        self, stats_cb: Optional[Callable[[bool, dict[str, Any]], None]] = None
+        self,
+        stats_cb: Optional[Callable[[bool, dict[str, Any]], None]] = None,
     ) -> tuple[int, list[dict[str, Any]]]:
         """
         :param stats_cb: function called with (ok, item) as returned by streaming_bulk on every iteration
