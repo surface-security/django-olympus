@@ -69,22 +69,15 @@ class Command(LogBaseCommand):
             col = cclass()
             col.logger.setLevel(self.logger.getEffectiveLevel())
             estimated_count = None if options['no_progress'] else col.estimated_count()
+            push = col.fake_push if options['test'] else col.push
             ind += 1
 
             with tqdm.tqdm(
                 desc=f'{cclass.name()} {ind}/{len(chosen)}', disable=options['no_progress'], total=estimated_count
             ) as pbar:
-
-                def update_pbar(ok, _):
-                    pbar.update(1)  # NOSONAR python:S1515
-                    if not ok:
-                        update_pbar.err += 1  # NOSONAR python:S1515
-                        pbar.set_postfix(err=update_pbar.err)
-
-                update_pbar.err = 0
-
+                error_bar = ErrorBar(pbar)
                 try:
-                    stats = col.push(stats_cb=update_pbar)
+                    stats = push(stats_cb=error_bar.update)
                     if options['no_progress']:
                         self.log(f'{cname} pushed {stats[0]} records')
                     if stats[1]:
@@ -96,3 +89,15 @@ class Command(LogBaseCommand):
 
         if errors:
             raise CommandError('These collectors failed', errors)
+
+
+class ErrorBar:
+    def __init__(self, pbar):
+        self.err = 0
+        self.pbar = pbar
+
+    def update(self, ok, _):
+        self.pbar.update(1)  # NOSONAR python:S1515
+        if not ok:
+            self.err += 1  # NOSONAR python:S1515
+            self.pbar.set_postfix(err=self.err)
