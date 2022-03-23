@@ -12,7 +12,11 @@ class Command(LogBaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('app_class', type=str, nargs='*', help='App or specific class to process')
         parser.add_argument('--no-progress', action='store_true', help='Disable progress-bar')
-        parser.add_argument('--test', action='store_true', help='Run collector without pushing results to ES, use verbosity to view data')
+        parser.add_argument(
+            '--test',
+            action='store_true',
+            help='Run collector without pushing results to ES, use verbosity to view data',
+        )
 
     def print_collectors(self):
         for _, _, collector in collectors():
@@ -39,7 +43,7 @@ class Command(LogBaseCommand):
         if not chosen:
             raise CommandError('no valid collectors specified')
         return chosen
-    
+
     def _set_es_logger_level(self):
         if self.verbosity == 2:
             logging.getLogger('elasticsearch').setLevel(logging.INFO)

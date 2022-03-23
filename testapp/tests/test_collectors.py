@@ -35,7 +35,7 @@ class Test(TestCase):
         self.assertEqual(cm.exception.args, ('no valid collectors specified',))
         self.assertEqual(out.getvalue(), '')
         self.assertEqual(err.getvalue(), '')
-    
+
     def test_base_collector(self):
         timestamp = datetime(2019, 1, 15, 9, 0, 0)
         es = mock.MagicMock()
@@ -81,9 +81,11 @@ class TestMocked(TestCase):
         p = mock.patch('elasticsearch.helpers.streaming_bulk')
         self.bulk_m = p.start()
         self.addCleanup(p.stop)
+
         def _f(*a, **b):
             for i in a[1]:
                 yield (True, i)
+
         self.bulk_m.side_effect = _f
 
     def test_push_to_es_all_good(self):
@@ -98,10 +100,12 @@ class TestMocked(TestCase):
     def test_push_to_es_so_so(self):
         out = StringIO()
         err = StringIO()
+
         def _f(*a, **b):
             # fail half
             for i, v in enumerate(a[1]):
                 yield (i % 2, v)
+
         self.bulk_m.side_effect = _f
 
         with self.assertRaises(CommandError) as cm:
