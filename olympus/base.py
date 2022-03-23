@@ -65,7 +65,8 @@ class OlympusCollector:
             self.es.indices.delete_alias(index='_all', name=alias, ignore=404)
             self.es.indices.put_alias(index=self.get_index_name(), name=alias)
 
-    def fake_push(self,
+    def fake_push(
+        self,
         stats_cb: Optional[Callable[[bool, dict[str, Any]], None]] = None,
     ) -> tuple[int, list[dict[str, Any]]]:
         """

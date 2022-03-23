@@ -9,6 +9,7 @@ APP_SETTINGS = {
 
 class OlympusConfig(AppConfig):
     name = 'olympus'
+    default_auto_field = 'django.db.models.AutoField'
 
     def ready(self):
         super().ready()
