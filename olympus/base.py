@@ -98,8 +98,10 @@ class OlympusCollector:
         for ok, item in helpers.streaming_bulk(
             self.es, self.__collect(), chunk_size=self.chunk_size, yield_ok=True, raise_on_error=False
         ):
-            if not ok and 'delete' in item and item['delete'].get('status') == 404:
-                # ignore "not_found" on delete...
+            delete_status = item.get("delete", {}).get('status')
+            update_status = item.get("update", {}).get('update')
+            if not ok and (delete_status == 404 or update_status == 404):
+                # ignore "not_found" on delete and update...
                 # consider it "ok" for stats purposes
                 ok = True
             if stats_cb is not None:
