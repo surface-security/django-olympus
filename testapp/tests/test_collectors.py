@@ -18,6 +18,13 @@ class AnotherTestCollector(OlympusCollector):
         return [{'k': 2}]
 
 
+class LifecycleCollector(OlympusCollector):
+    index_lifecycle_name = "test"
+
+    def collect(self):
+        return [{'k': 2}]
+
+
 class Test(TestCase):
     def test_push_to_es_list(self):
         out = StringIO()
@@ -58,7 +65,7 @@ class Test(TestCase):
         self.assertEqual(x.get_index_name(), 'tests.atestcollector-2019-01')
 
         x.create_index()
-        es.indices.create.assert_called_once_with(ignore=400, index='tests.atestcollector-2019-01')
+        es.indices.create.assert_called_once_with(ignore=400, index='tests.atestcollector-2019-01', body={})
 
         es.reset_mock()
         self.assertEqual(x.push(), (0, []))
@@ -69,6 +76,19 @@ class Test(TestCase):
 {"index":{"_index":"tests.atestcollector-2019-01","_type":"status"}}
 {"k":2}
 '''
+        )
+
+    def test_collector_with_policy(self):
+        timestamp = datetime(2019, 1, 15, 9, 0, 0)
+        es = mock.MagicMock()
+
+        collector = LifecycleCollector(es=es, timestamp=timestamp)
+        collector.index_date_pattern = "%Y-%m"
+        collector.create_index()
+        es.indices.create.assert_called_once_with(
+            ignore=400,
+            index='tests.lifecyclecollector-2019-01',
+            body={'settings': {'index.lifecycle.name': LifecycleCollector.index_lifecycle_name}},
         )
 
 
@@ -122,9 +142,10 @@ class TestMocked(TestCase):
         call_command('push_to_es', 'tests', no_progress=True, stdout=out, stderr=err)
         self.assertEqual(
             out.getvalue(),
-            'Matched 2 collectors\n'
+            'Matched 3 collectors\n'
             'tests.ATestCollector pushed 2 records\n'
-            'tests.AnotherTestCollector pushed 1 records\n',
+            'tests.AnotherTestCollector pushed 1 records\n'
+            'tests.LifecycleCollector pushed 1 records\n',
         )
         self.assertEqual(err.getvalue(), '')
 
@@ -134,9 +155,10 @@ class TestMocked(TestCase):
         call_command('push_to_es', 'tests', no_progress=True, test=True, stdout=out, stderr=err)
         self.assertEqual(
             out.getvalue(),
-            'Matched 2 collectors\n'
+            'Matched 3 collectors\n'
             'tests.ATestCollector pushed 2 records\n'
-            'tests.AnotherTestCollector pushed 1 records\n',
+            'tests.AnotherTestCollector pushed 1 records\n'
+            'tests.LifecycleCollector pushed 1 records\n',
         )
         self.assertEqual(err.getvalue(), '')
         self.bulk_m.assert_not_called()

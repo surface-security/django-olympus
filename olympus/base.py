@@ -24,6 +24,7 @@ class ElasticSearchClient(Elasticsearch):
 class OlympusCollector:
     index_name: Optional[str] = None
     index_date_pattern: Optional[str] = None
+    index_lifecycle_name: Optional[str] = None
     chunk_size = 500
     alias_suffix = '-latest'
 
@@ -58,7 +59,11 @@ class OlympusCollector:
         return f"{cls.__module__.split('.')[0]}.{cls.__name__}"
 
     def create_index(self):
-        self.es.indices.create(index=self.get_index_name(), ignore=400)
+        body = dict()
+        if self.index_lifecycle_name:
+            body["settings"] = {"index.lifecycle.name": self.index_lifecycle_name}
+
+        self.es.indices.create(index=self.get_index_name(), body=body, ignore=400)
         if self.index_date_pattern and self.alias_suffix:
             # Create unique alias for latest index
             alias = self.__get_raw_index_name() + self.alias_suffix
